@@ -40,16 +40,22 @@
     const scored = [];
     for (const e of searchIndex) {
       let score = -1, via = null;
-      if (e.name.startsWith(q)) score = 0;
+      const exactAlt = e.alts.find((a) => a.key === q);
+      if (exactAlt && e.name !== q) { score = -0.5; via = exactAlt.raw; } // abbreviation typed in full, e.g. "uk"
+      else if (e.name.startsWith(q)) score = 0;
       else if (e.name.split(' ').some((w) => w.startsWith(q))) score = 1;
-      else if (e.name.includes(q)) score = 2;
-      else {
+      else if (q.length >= 3) {
         const a = e.alts.find((a) => a.key.startsWith(q) || a.key.split(' ').some((w) => w.startsWith(q)));
-        if (a) { score = 3; via = a.raw; }
+        if (a) { score = 2; via = a.raw; }
       }
-      if (score >= 0) scored.push({ c: e.c, score, via });
+      if (score !== -1) scored.push({ c: e.c, score, via });
     }
-    return scored.sort((a, b) => a.score - b.score || a.c.name.localeCompare(b.c.name)).slice(0, 8);
+    scored.sort((a, b) => a.score - b.score || a.c.name.localeCompare(b.c.name));
+    // every country whose name starts with the input is listed; for a single letter that is all,
+    // otherwise up to 8 looser matches follow (a later word, e.g. "korea", or from 3 letters an
+    // alternative name, e.g. "usa")
+    const starts = scored.filter((m) => m.score <= 0);
+    return q.length === 1 ? starts : starts.concat(scored.filter((m) => m.score > 0).slice(0, 8));
   };
 
   // ---------- geography ----------
@@ -274,8 +280,9 @@
 
   $('#guess-form').addEventListener('submit', (e) => {
     e.preventDefault();
-    const top = active >= 0 && items[active] ? items[active] : suggest(input.value)[0];
-    const pick = findExact(input.value) || (top ? top.c : null);
+    const shown = active >= 0 && items[active] ? items[active] : null;
+    const top = suggest(input.value)[0];
+    const pick = shown ? shown.c : findExact(input.value) || (top ? top.c : null);
     submitGuess(pick);
   });
 
