@@ -1756,20 +1756,6 @@ const COUNTRIES = [
 ]
 },
 {
-"name": "Palestine",
-"code": "ps",
-"continent": "Asia",
-"lat": 31.9,
-"lng": 35.2,
-"population": 4569087,
-"temperature": 19.5,
-"alt": [
-"Dawlat Filasṭin",
-"Palestine, State of",
-"State of Palestine"
-]
-},
-{
 "name": "Panama",
 "code": "pa",
 "continent": "North America",
