@@ -579,13 +579,14 @@ const COUNTRIES = [
 "name": "DR Congo",
 "code": "cd",
 "continent": "Africa",
-"lat": 0,
-"lng": 25,
+"lat": -2.88,
+"lng": 23.66,
 "population": 84068091,
 "temperature": 24.35,
 "alt": [
 "Congo, the Democratic Republic of the",
 "Congo-Kinshasa",
+"DRC",
 "Democratic Republic of Congo",
 "Democratic Republic of the Congo",
 "The Democratic Republic of Congo"
@@ -2118,6 +2119,7 @@ const COUNTRIES = [
 "population": 57779622,
 "temperature": 18.23,
 "alt": [
+"RSA",
 "Republic of South Africa",
 "Suid-Afrika"
 ]
@@ -2442,7 +2444,8 @@ const COUNTRIES = [
 "population": 9630959,
 "temperature": 28.17,
 "alt": [
-"Emirates"
+"Emirates",
+"UAE"
 ]
 },
 {
@@ -2455,6 +2458,7 @@ const COUNTRIES = [
 "temperature": 9.24,
 "alt": [
 "Great Britain",
+"UK",
 "United Kingdom of Great Britain and Northern Ireland"
 ]
 },
@@ -2467,6 +2471,8 @@ const COUNTRIES = [
 "population": 326687501,
 "temperature": 9.46,
 "alt": [
+"US",
+"USA",
 "United States of America"
 ]
 },

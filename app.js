@@ -22,12 +22,15 @@
   // ---------- country lookup ----------
   const normalize = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const byCode = new Map(COUNTRIES.map((c) => [c.code, c]));
-  const searchIndex = COUNTRIES.map((c) => ({ c, name: normalize(c.name), alts: c.alt.map(normalize) }));
+  const searchIndex = COUNTRIES.map((c) => {
+    const alts = c.alt.map((a) => ({ raw: a, key: normalize(a) })).filter((a) => a.key);
+    return { c, name: normalize(c.name), alts };
+  });
 
   const findExact = (text) => {
     const q = normalize(text);
     if (!q) return null;
-    const hit = searchIndex.find((e) => e.name === q) || searchIndex.find((e) => e.alts.includes(q));
+    const hit = searchIndex.find((e) => e.name === q) || searchIndex.find((e) => e.alts.some((a) => a.key === q));
     return hit ? hit.c : null;
   };
 
@@ -41,8 +44,8 @@
       else if (e.name.split(' ').some((w) => w.startsWith(q))) score = 1;
       else if (e.name.includes(q)) score = 2;
       else {
-        const i = e.alts.findIndex((a) => a.startsWith(q) || a.split(' ').some((w) => w.startsWith(q)));
-        if (i >= 0) { score = 3; via = e.c.alt[i]; }
+        const a = e.alts.find((a) => a.key.startsWith(q) || a.key.split(' ').some((w) => w.startsWith(q)));
+        if (a) { score = 3; via = a.raw; }
       }
       if (score >= 0) scored.push({ c: e.c, score, via });
     }
@@ -68,18 +71,19 @@
   const grade = (guess, target) => {
     const same = guess.code === target.code;
     const ratio = guess.population / target.population;
-    const tDiff = target.temperature - guess.temperature;
+    // compare temperatures as displayed (one decimal) so the colour matches what the player sees
+    const tDiff = Math.round((target.temperature - guess.temperature) * 10) / 10;
     const dist = distanceKm(guess, target);
     return {
       continent: guess.continent === target.continent ? 'green' : 'red',
       hemisphere: hemisphere(guess) === hemisphere(target) ? 'green' : 'red',
       population: {
-        color: same || (ratio >= 1 / 1.1 && ratio <= 1.1) ? 'green' : ratio >= 0.5 && ratio <= 2 ? 'yellow' : 'red',
+        color: same || Math.abs(ratio - 1) <= 0.1 ? 'green' : ratio >= 0.5 && ratio <= 2 ? 'yellow' : 'red',
         dir: same ? 0 : Math.sign(target.population - guess.population),
       },
       temperature: {
         color: Math.abs(tDiff) <= 1 ? 'green' : Math.abs(tDiff) <= 5 ? 'yellow' : 'red',
-        dir: same || tDiff === 0 ? 0 : Math.sign(tDiff),
+        dir: same ? 0 : Math.sign(tDiff),
       },
       coordinates: {
         color: same ? 'green' : dist < 1500 ? 'yellow' : 'red',
@@ -107,6 +111,7 @@
   let stats = load(STORE_STATS, { played: 0, won: 0, streak: 0, maxStreak: 0, dist: {} });
   let game = load(STORE_GAME, null);
   if (!game || !byCode.has(game.target)) game = newGame();
+  else game.guesses = game.guesses.filter((code) => byCode.has(code));
 
   function nextTarget() {
     // Shuffle bag: every country comes up once before any repeats.
@@ -147,7 +152,7 @@
 
   function render() {
     const target = byCode.get(game.target);
-    guessesEl.innerHTML = game.guesses.slice().reverse().map((code) => rowHtml(byCode.get(code), target)).join('');
+    guessesEl.innerHTML = game.guesses.map((code) => rowHtml(byCode.get(code), target)).join('');
     $('#guess-count').textContent = `Guesses: ${game.guesses.length}`;
 
     const over = game.status !== 'playing';
@@ -209,6 +214,8 @@
     input.value = '';
     closeList();
     render();
+    // newest guess is the last row; keep it in view
+    if (guessesEl.lastElementChild) guessesEl.lastElementChild.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     if (game.status === 'won') setTimeout(() => { renderStats(); $('#stats-dialog').showModal(); }, 600);
   }
 
@@ -267,7 +274,8 @@
 
   $('#guess-form').addEventListener('submit', (e) => {
     e.preventDefault();
-    const pick = findExact(input.value) || (active >= 0 && items[active] ? items[active].c : null);
+    const top = active >= 0 && items[active] ? items[active] : suggest(input.value)[0];
+    const pick = findExact(input.value) || (top ? top.c : null);
     submitGuess(pick);
   });
 
@@ -291,7 +299,11 @@
     renderStats();
   });
   document.querySelectorAll('dialog').forEach((d) => {
-    d.addEventListener('click', (e) => { if (e.target === d || e.target.closest('[data-close]')) d.close(); });
+    d.addEventListener('click', (e) => {
+      const r = d.getBoundingClientRect();
+      const outside = e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+      if ((e.target === d && outside) || e.target.closest('[data-close]')) d.close();
+    });
   });
 
   render();
