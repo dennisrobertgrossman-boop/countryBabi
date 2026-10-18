@@ -88,7 +88,7 @@ main { max-width: 860px; margin: 0 auto; padding: 20px 16px 48px; }
   left: 0; right: 0; top: calc(100% + 4px);
   margin: 0; padding: 4px 0;
   list-style: none;
-  max-height: 280px; overflow-y: auto;
+  max-height: min(420px, 55vh); overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
