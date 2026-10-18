@@ -152,7 +152,7 @@
 
   function render() {
     const target = byCode.get(game.target);
-    guessesEl.innerHTML = game.guesses.slice().reverse().map((code) => rowHtml(byCode.get(code), target)).join('');
+    guessesEl.innerHTML = game.guesses.map((code) => rowHtml(byCode.get(code), target)).join('');
     $('#guess-count').textContent = `Guesses: ${game.guesses.length}`;
 
     const over = game.status !== 'playing';
@@ -214,6 +214,8 @@
     input.value = '';
     closeList();
     render();
+    // newest guess is the last row; keep it in view
+    if (guessesEl.lastElementChild) guessesEl.lastElementChild.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     if (game.status === 'won') setTimeout(() => { renderStats(); $('#stats-dialog').showModal(); }, 600);
   }
 
