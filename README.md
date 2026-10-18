@@ -23,7 +23,8 @@ Countries: the 193 United Nations member states plus Vatican City (194 in total)
 ## Data sources (MIT licence)
 
 - Names, coordinates, alternative spellings: [`world-countries`](https://github.com/mledoze/countries) 5.1.0
-- Continent, population (about 2018), yearly average temperature: [`country-json`](https://github.com/samayo/country-json) 2.3.0. Montenegro's temperature is missing there; an approximate 10.55 °C is used.
+- Continent, population (about 2018), yearly average temperature: [`country-json`](https://github.com/samayo/country-json) 2.3.0. Montenegro's temperature is missing there; an approximate 10.55 °C is used. DR Congo's coordinates are set to its approximate geographic centre (2.88° S, 23.66° E), because the source's rounded value (0°, 25° E) put it in the Northern hemisphere.
 - Flags: [`flag-icons`](https://github.com/lipis/flag-icons) 7.6.0
+- Background map (`world.svg`): Natural Earth land outlines (public domain) via [`world-atlas`](https://github.com/topojson/world-atlas) 2.0.2 (ISC licence)
 
 Data is in `data/countries.js`.

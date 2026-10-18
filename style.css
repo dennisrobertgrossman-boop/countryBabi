@@ -9,6 +9,7 @@
   --yellow: #e2b007;
   --red: #d64545;
   --tile-text: #ffffff;
+  --map: #d3d8df;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -18,6 +19,7 @@
     --muted: #98a2b3;
     --border: #2e3542;
     --accent: #5b8ff0;
+    --map: #2a303b;
   }
 }
 
@@ -28,6 +30,18 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* plain grey world map behind everything */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--map);
+  -webkit-mask: url(world.svg) center / contain no-repeat;
+  mask: url(world.svg) center / contain no-repeat;
+  pointer-events: none;
 }
 
 .topbar {
