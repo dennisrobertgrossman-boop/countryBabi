@@ -24,6 +24,8 @@
 }
 
 * { box-sizing: border-box; }
+/* the hidden attribute must win over display rules below (e.g. .icon-btn, .mode-banner) */
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -209,4 +211,84 @@ dialog .close {
   .tile { min-height: 64px; font-size: .78rem; }
   .tile::before { content: attr(data-label); font-size: .62rem; font-weight: 500; opacity: .85; margin-bottom: 2px; }
   .topbar h1 { font-size: 1.2rem; }
+}
+
+/* ---------- online features: account button, profile dialog, leaderboard ---------- */
+.topbar-right { display: flex; gap: 8px; }
+.account-btn { position: relative; padding: 0; overflow: visible; }
+.account-btn img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.account-btn img + svg { display: none; }
+.account-btn.signed-in { border-color: var(--accent); border-width: 2px; }
+.badge {
+  position: absolute; top: -4px; right: -4px;
+  min-width: 18px; height: 18px; padding: 0 4px;
+  border-radius: 9px;
+  background: var(--red); color: #fff;
+  font-size: .7rem; font-weight: 700; line-height: 18px; text-align: center;
+}
+
+.mode-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-bottom: 10px; padding: 8px 12px;
+  border: 1px solid var(--accent); border-radius: 8px;
+  background: var(--panel);
+}
+.link-btn { border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; padding: 0; }
+
+.muted { color: var(--muted); }
+.small { font-size: .82rem; }
+
+dialog.wide { width: min(680px, calc(100vw - 32px)); }
+.profile-head { display: flex; align-items: center; gap: 12px; margin: 0 32px 12px 0; }
+.avatar {
+  width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex: none;
+  display: inline-grid; place-items: center;
+  background: var(--accent); color: #fff; font-weight: 700; font-size: .85rem;
+}
+.avatar.big { width: 48px; height: 48px; font-size: 1.3rem; }
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 14px; overflow-x: auto; }
+.tabs button {
+  border: 0; border-bottom: 3px solid transparent; background: none; color: var(--muted);
+  font: inherit; font-weight: 600; padding: 8px 10px; cursor: pointer; white-space: nowrap;
+}
+.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.tabs .count { background: var(--red); color: #fff; border-radius: 9px; padding: 0 6px; font-size: .72rem; }
+
+.notice { background: var(--bg); border-left: 4px solid var(--accent); padding: 8px 12px; border-radius: 4px; }
+.notice a { color: var(--accent); font-weight: 600; }
+
+.row-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.row-form label { width: 100%; font-weight: 600; font-size: .9rem; }
+.row-form input {
+  flex: 1; min-width: 0; padding: 9px 12px; font: inherit;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text);
+}
+
+.people { list-style: none; margin: 0 0 12px; padding: 0; }
+.people li { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); margin: 0; }
+.people .who { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.small-btn { padding: 5px 10px; font-size: .82rem; text-decoration: none; }
+.result-tag { font-size: .75rem; font-weight: 700; color: #fff; border-radius: 4px; padding: 2px 6px; flex: none; }
+.result-tag.win { background: var(--green); }
+.result-tag.loss { background: var(--red); }
+.result-tag.draw { background: var(--muted); }
+
+.google-btn { display: inline-flex; align-items: center; gap: 10px; margin: 6px 0 10px; }
+
+.table-wrap { overflow-x: auto; }
+.board-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.board-table th, .board-table td { padding: 6px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.board-table th:nth-child(-n+2), .board-table td:nth-child(-n+2) { text-align: left; }
+.board-table th { font-weight: 600; color: var(--muted); font-size: .8rem; }
+.board-table .player { display: flex; align-items: center; gap: 8px; }
+.board-table tr.me td { font-weight: 700; }
+.sort { border: 0; background: none; color: inherit; font: inherit; cursor: pointer; padding: 0; }
+.sort.on { color: var(--text); }
+
+@media (max-width: 640px) {
+  dialog { padding: 16px; }
+  .tabs { gap: 0; }
+  .tabs button { flex: 1 1 auto; padding: 8px 4px; font-size: .8rem; }
+  .profile-head { margin-right: 28px; }
 }
