@@ -1,0 +1,88 @@
+rules_version = '2';
+
+// Cloud Firestore rules for Countryle Unlimited's online features.
+// Paste this file into Firebase console → Firestore Database → Rules, then Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function myEmail() { return request.auth.token.email.lower(); }
+    function verified() { return signedIn() && request.auth.token.email_verified == true; }
+    function shortName(s) { return s is string && s.size() > 0 && s.size() <= 40; }
+
+    // Public profile: name, photo and game statistics. No email address is stored here.
+    // Any signed-in player can read a profile whose id they know (friends); nobody can list them.
+    match /users/{uid} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'photo', 'stats', 'updatedAt'])
+        && shortName(request.resource.data.name)
+        && (request.resource.data.photo == null || request.resource.data.photo is string)
+        && request.resource.data.stats is map;
+      allow delete: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Friend invitations, addressed by email. Id: "<sender uid>_<recipient email>".
+    // An accepted invitation is the friendship itself.
+    function freshInvite(id) {
+      let d = request.resource.data;
+      return verified()
+        && d.keys().hasOnly(['fromUid', 'fromName', 'fromEmail', 'toEmail', 'status', 'createdAt'])
+        && d.fromUid == request.auth.uid
+        && d.fromEmail == myEmail()
+        && shortName(d.fromName)
+        && d.toEmail is string
+        && d.toEmail == d.toEmail.lower()
+        && d.toEmail.matches('[^@\\s/]+@[^@\\s/]+[.][^@\\s/]+')
+        && d.toEmail != myEmail()
+        && d.status == 'pending'
+        && id == d.fromUid + '_' + d.toEmail;
+    }
+    function isSender() { return signedIn() && resource.data.fromUid == request.auth.uid; }
+    function isRecipient() { return verified() && resource.data.toEmail == myEmail(); }
+
+    match /invites/{id} {
+      allow read: if isSender() || isRecipient();
+      allow create: if freshInvite(id);
+      allow update: if
+        // the sender may send it again (e.g. after it was declined), but not reset a friendship
+        (isSender() && resource.data.status != 'accepted' && freshInvite(id))
+        // the recipient may accept or decline a pending invitation, adding only their uid and name
+        || (isRecipient() && resource.data.status == 'pending'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'toUid', 'toName'])
+            && request.resource.data.status in ['accepted', 'declined']
+            && request.resource.data.toUid == request.auth.uid
+            && shortName(request.resource.data.toName));
+      // either side may withdraw: cancel an invitation or end a friendship
+      allow delete: if isSender() || isRecipient();
+    }
+
+    // Head-to-head challenges: both players get the same hidden country.
+    match /challenges/{id} {
+      allow read: if signedIn() && request.auth.uid in resource.data.members;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['fromUid', 'fromName', 'toUid', 'toName', 'members', 'target', 'createdAt', 'results'])
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.toUid is string
+        && request.resource.data.toUid != request.auth.uid
+        && exists(/databases/$(database)/documents/users/$(request.resource.data.toUid))
+        && request.resource.data.members == [request.auth.uid, request.resource.data.toUid]
+        && shortName(request.resource.data.fromName)
+        && shortName(request.resource.data.toName)
+        && request.resource.data.target is string && request.resource.data.target.size() == 2
+        && request.resource.data.results == {};
+      // each player records their own result once; nothing else may change
+      allow update: if signedIn() && request.auth.uid in resource.data.members
+        && !(request.auth.uid in resource.data.results)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['results'])
+        && request.resource.data.results.diff(resource.data.results).affectedKeys().hasOnly([request.auth.uid])
+        && request.resource.data.results[request.auth.uid].keys().hasOnly(['guesses', 'won', 'at'])
+        && request.resource.data.results[request.auth.uid].guesses is int
+        && request.resource.data.results[request.auth.uid].guesses >= 0
+        && request.resource.data.results[request.auth.uid].guesses <= 500
+        && request.resource.data.results[request.auth.uid].won is bool;
+      allow delete: if signedIn() && request.auth.uid in resource.data.members;
+    }
+  }
+}

@@ -4,6 +4,7 @@
   const STORE_GAME = 'countryle-unlimited:game';
   const STORE_STATS = 'countryle-unlimited:stats';
   const STORE_BAG = 'countryle-unlimited:bag';
+  const STORE_CHALLENGE = 'countryle-unlimited:challenge:'; // + challenge id: progress in a head-to-head game
   const MAX_DIST_BUCKET = 10; // distribution rows 1..9 and "10+"
 
   const $ = (sel) => document.querySelector(sel);
@@ -20,7 +21,7 @@
   const save = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ } };
 
   // ---------- country lookup ----------
-  const normalize = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const normalize = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const byCode = new Map(COUNTRIES.map((c) => [c.code, c]));
   const searchIndex = COUNTRIES.map((c) => {
     const alts = c.alt.map((a) => ({ raw: a, key: normalize(a) })).filter((a) => a.key);
@@ -114,10 +115,30 @@
     `<path fill="currentColor" d="M12 2l6 9h-4v11h-4V11H6z"/></svg>`;
 
   // ---------- state ----------
-  let stats = load(STORE_STATS, { played: 0, won: 0, streak: 0, maxStreak: 0, dist: {} });
-  let game = load(STORE_GAME, null);
-  if (!game || !byCode.has(game.target)) game = newGame();
-  else game.guesses = game.guesses.filter((code) => byCode.has(code));
+  const emptyStats = () => ({ played: 0, won: 0, streak: 0, maxStreak: 0, dist: {}, winGuesses: 0 });
+  function normalizeStats(s) {
+    const n = Object.assign(emptyStats(), s || {});
+    n.dist = Object.assign({}, n.dist);
+    // winGuesses (total guesses over all wins) was added later; estimate it from the distribution
+    if (!Number.isFinite(n.winGuesses)) n.winGuesses = Object.entries(n.dist).reduce((t, [k, v]) => t + k * v, 0);
+    return n;
+  }
+
+  let stats = normalizeStats(load(STORE_STATS, null));
+  let freeGame = load(STORE_GAME, null);
+  if (!freeGame || !byCode.has(freeGame.target)) freeGame = newGame();
+  else freeGame.guesses = freeGame.guesses.filter((code) => byCode.has(code));
+  // `game` is what is on screen: the free-play game, or a challenge ({ challengeId, opponent, ... })
+  let game = freeGame;
+
+  const listeners = {};
+  const on = (event, fn) => { (listeners[event] = listeners[event] || []).push(fn); };
+  const emit = (event, data) => (listeners[event] || []).forEach((fn) => fn(data));
+
+  function saveGame() {
+    if (game.challengeId) save(STORE_CHALLENGE + game.challengeId, { guesses: game.guesses, status: game.status });
+    else save(STORE_GAME, game);
+  }
 
   function nextTarget() {
     // Shuffle bag: every country comes up once before any repeats.
@@ -162,19 +183,30 @@
     $('#guess-count').textContent = `Guesses: ${game.guesses.length}`;
 
     const over = game.status !== 'playing';
+    const inChallenge = Boolean(game.challengeId);
     input.disabled = over;
     $('#guess-btn').disabled = over;
     $('#giveup-btn').hidden = over;
+    $('#new-btn').hidden = inChallenge;
+    const banner = $('#mode-banner');
+    banner.hidden = !inChallenge;
+    if (inChallenge) {
+      banner.innerHTML = `<span>Challenge vs <b>${esc(game.opponent)}</b></span>` +
+        '<button class="link-btn" id="leave-challenge" type="button">Back to free play</button>';
+      $('#leave-challenge').addEventListener('click', exitChallenge);
+    }
     resultEl.hidden = !over;
     if (over) {
       const won = game.status === 'won';
       const n = game.guesses.length;
+      const solved = `Solved in ${n} ${n === 1 ? 'guess' : 'guesses'}.`;
       resultEl.innerHTML = `
         <h2>${won ? 'You got it!' : 'Better luck next time'}</h2>
-        <div>${won ? `Solved in ${n} ${n === 1 ? 'guess' : 'guesses'}.` : 'The country was:'}</div>
+        <div>${won ? solved : 'The country was:'}</div>
         <div class="answer">${flagImg(target)}<span>${esc(target.name)}</span></div>
-        <button class="btn primary" id="play-again" type="button">Play again</button>`;
-      $('#play-again').addEventListener('click', startNew);
+        ${inChallenge ? `<p class="muted">Your result was sent to ${esc(game.opponent)}. Open <b>Challenges</b> in your profile to see who won.</p>` : ''}
+        <button class="btn primary" id="play-again" type="button">${inChallenge ? 'Back to free play' : 'Play again'}</button>`;
+      $('#play-again').addEventListener('click', inChallenge ? exitChallenge : startNew);
     }
   }
 
@@ -186,7 +218,7 @@
 
     const counts = Array.from({ length: MAX_DIST_BUCKET }, (_, i) => stats.dist[i + 1] || 0);
     const max = Math.max(1, ...counts);
-    const current = game.status === 'won' ? Math.min(game.guesses.length, MAX_DIST_BUCKET) : 0;
+    const current = freeGame.status === 'won' ? Math.min(freeGame.guesses.length, MAX_DIST_BUCKET) : 0;
     $('#distribution').innerHTML = counts.map((n, i) =>
       `<div class="dist-row"><span class="lbl">${i + 1 === MAX_DIST_BUCKET ? MAX_DIST_BUCKET + '+' : i + 1}</span>` +
       `<span class="bar${current === i + 1 ? ' current' : ''}" style="width:${Math.max(8, (n / max) * 100)}%">${n}</span></div>`
@@ -196,6 +228,12 @@
   // ---------- game actions ----------
   function finish(status) {
     game.status = status;
+    saveGame();
+    if (game.challengeId) {
+      // head-to-head games are scored in the challenge, not in the personal statistics
+      emit('challenge-finished', { id: game.challengeId, won: status === 'won', guesses: game.guesses.length });
+      return;
+    }
     stats.played++;
     if (status === 'won') {
       stats.won++;
@@ -203,10 +241,12 @@
       stats.maxStreak = Math.max(stats.maxStreak, stats.streak);
       const b = Math.min(game.guesses.length, MAX_DIST_BUCKET);
       stats.dist[b] = (stats.dist[b] || 0) + 1;
+      stats.winGuesses += game.guesses.length;
     } else {
       stats.streak = 0;
     }
     save(STORE_STATS, stats);
+    emit('stats', stats);
   }
 
   function submitGuess(country) {
@@ -216,21 +256,43 @@
     if (game.guesses.includes(country.code)) { message.textContent = `You already guessed ${country.name}.`; return; }
     game.guesses.push(country.code);
     if (country.code === game.target) finish('won');
-    save(STORE_GAME, game);
+    else saveGame();
     input.value = '';
     closeList();
     render();
     // newest guess is the last row; keep it in view
     if (guessesEl.lastElementChild) guessesEl.lastElementChild.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    if (game.status === 'won') setTimeout(() => { renderStats(); $('#stats-dialog').showModal(); }, 600);
+    if (game.status === 'won' && !game.challengeId) setTimeout(() => { renderStats(); $('#stats-dialog').showModal(); }, 600);
   }
 
   function startNew() {
-    game = newGame();
+    game = freeGame = newGame();
     message.textContent = '';
     input.value = '';
     render();
     input.focus();
+  }
+
+  // ---------- challenges (head-to-head games against a friend) ----------
+  const challengeProgress = (id) => load(STORE_CHALLENGE + id, { guesses: [], status: 'playing' });
+
+  function playChallenge({ id, target, opponent }) {
+    if (!byCode.has(target)) return;
+    const p = challengeProgress(id);
+    game = { challengeId: id, opponent, target, guesses: p.guesses.filter((code) => byCode.has(code)), status: p.status };
+    message.textContent = '';
+    input.value = '';
+    closeList();
+    render();
+    window.scrollTo({ top: 0 });
+    if (game.status === 'playing') input.focus();
+  }
+
+  function exitChallenge() {
+    game = freeGame;
+    message.textContent = '';
+    render();
+    if (game.status === 'playing') input.focus();
   }
 
   // ---------- autocomplete ----------
@@ -294,16 +356,16 @@
   $('#giveup-btn').addEventListener('click', () => {
     if (game.status !== 'playing' || !confirm('Give up and reveal the country? This counts as a loss.')) return;
     finish('lost');
-    save(STORE_GAME, game);
     render();
   });
   $('#help-btn').addEventListener('click', () => $('#help-dialog').showModal());
   $('#stats-btn').addEventListener('click', () => { renderStats(); $('#stats-dialog').showModal(); });
   $('#reset-stats').addEventListener('click', () => {
     if (!confirm('Reset all statistics?')) return;
-    stats = { played: 0, won: 0, streak: 0, maxStreak: 0, dist: {} };
+    stats = emptyStats();
     save(STORE_STATS, stats);
     renderStats();
+    emit('stats', stats);
   });
   document.querySelectorAll('dialog').forEach((d) => {
     d.addEventListener('click', (e) => {
@@ -312,6 +374,25 @@
       if ((e.target === d && outside) || e.target.closest('[data-close]')) d.close();
     });
   });
+
+  // ---------- interface for the optional online features (online.js) ----------
+  window.CountryleApp = {
+    on,
+    esc,
+    flagImg,
+    country: (code) => byCode.get(code),
+    randomCountryCode: () => COUNTRIES[Math.floor(Math.random() * COUNTRIES.length)].code,
+    getStats: () => stats,
+    setStats(s) {
+      stats = normalizeStats(s);
+      save(STORE_STATS, stats);
+      if ($('#stats-dialog').open) renderStats();
+    },
+    emptyStats,
+    playChallenge,
+    challengeProgress,
+    currentChallengeId: () => game.challengeId || null,
+  };
 
   render();
   if (!load('countryle-unlimited:seen-help', false)) {
